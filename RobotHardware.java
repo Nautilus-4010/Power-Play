@@ -19,11 +19,13 @@ public class RobotHardware {
     public DcMotor rightBackDrive;
     public Servo intake;
     public DcMotor elevatorRight, elevatorLeft;
+    public Servo channelRight, channelLeft;
 
     final double ELEVATOR_RISE_POWER = 0.35;
     final double ELEVATOR_LOWER_POWER = -ELEVATOR_RISE_POWER;
     final double MOTOR_UPDATE_PERIOD_MS = 50;
     final double MOTOR_POWER_INCREMENT = 0.065;
+    final double CHANNEL_UP = 0.4;
 
     private ElapsedTime timer = new ElapsedTime();
     private double lastMotorUpdateTime;
@@ -54,7 +56,7 @@ public class RobotHardware {
         lastMotorUpdateTime = timer.milliseconds();
         lastTracakbleSearchTime = lastMotorUpdateTime;
 
-        //initializeMechanisms(hardwareMap);
+        initializeMechanisms(hardwareMap);
 
         opMode.telemetry.addData("Status", "Initialized");
         opMode.telemetry.update();
@@ -66,6 +68,14 @@ public class RobotHardware {
         elevatorRight.setDirection(DcMotor.Direction.FORWARD);
         elevatorLeft.setDirection(DcMotor.Direction.REVERSE);
         intake = hardwareMap.get(Servo.class, "intake");
+        // TODO: Define configuration in the other robot
+        // Connected to PORT 5 in control hub
+        channelLeft = hardwareMap.get(Servo.class, "channel_right");
+        // Connected to PORT 1 in expansion hub
+        channelRight = hardwareMap.get(Servo.class, "channel_left");
+        channelLeft.setDirection(Servo.Direction.FORWARD);
+        channelRight.setDirection(Servo.Direction.REVERSE);
+        initialPositionChannel();
     }
 
     // ******************************************
@@ -155,6 +165,22 @@ public class RobotHardware {
     public void moveElevator(double power) {
         elevatorRight.setPower(power);
         elevatorLeft.setPower(power);
+    }
+
+    // **************************
+    // *     SERVOS_CHANNEL     *
+    // **************************
+    public void initialPositionChannel(){
+        channelLeft.setPosition(Servo.MIN_POSITION);
+        channelRight.setPosition(Servo.MIN_POSITION);
+    }
+    public void channelUp(){
+        channelLeft.setPosition(CHANNEL_UP);
+        channelRight.setPosition(CHANNEL_UP);
+    }
+    public void channelStatus(){
+        opMode.telemetry.addData("Channel left position", ".2f", channelLeft.getPosition());
+        opMode.telemetry.addData("Channel right position", ".2f", channelRight.getPosition());
     }
 
     // ******************************************

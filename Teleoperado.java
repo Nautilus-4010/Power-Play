@@ -49,6 +49,13 @@ public class Teleoperado extends LinearOpMode {
             else
                 robot.openIntake();
             telemetry.update();
+            // ***************************
+            // *     CONTROL CHANNEL     *
+            // ***************************
+            if(gamepad2.dpad_up)
+                robot.channelUp();
+            else if(gamepad2.dpad_down)
+                robot.initialPositionChannel();
         }
     }
 
