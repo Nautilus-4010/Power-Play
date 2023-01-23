@@ -70,9 +70,9 @@ public class RobotHardware {
         intake = hardwareMap.get(Servo.class, "intake");
         // TODO: Define configuration in the other robot
         // Connected to PORT 5 in control hub
-        channelLeft = hardwareMap.get(Servo.class, "channel_right");
+        channelLeft = hardwareMap.get(Servo.class, "channel_left");
         // Connected to PORT 1 in expansion hub
-        channelRight = hardwareMap.get(Servo.class, "channel_left");
+        channelRight = hardwareMap.get(Servo.class, "channel_right");
         channelLeft.setDirection(Servo.Direction.FORWARD);
         channelRight.setDirection(Servo.Direction.REVERSE);
         initialPositionChannel();
