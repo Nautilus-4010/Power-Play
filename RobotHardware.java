@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -20,13 +21,13 @@ public class RobotHardware {
     public Servo intake;
     public DcMotor elevatorRight, elevatorLeft;
     public Servo channelRight, channelLeft;
+    public AnalogInput pot;
 
     final double ELEVATOR_RISE_POWER = 0.35;
     final double ELEVATOR_LOWER_POWER = -ELEVATOR_RISE_POWER;
     final double MOTOR_UPDATE_PERIOD_MS = 50;
     final double MOTOR_POWER_INCREMENT = 0.065;
     final double CHANNEL_UP = 0.4;
-
     private ElapsedTime timer = new ElapsedTime();
     private double lastMotorUpdateTime;
     private LinearOpMode opMode;
@@ -76,6 +77,9 @@ public class RobotHardware {
         channelLeft.setDirection(Servo.Direction.FORWARD);
         channelRight.setDirection(Servo.Direction.REVERSE);
         initialPositionChannel();
+    }
+    public void initializeSensors(HardwareMap hardwareMap){
+        pot = hardwareMap.get(AnalogInput.class, "pot");
     }
 
     // ******************************************
@@ -181,6 +185,23 @@ public class RobotHardware {
     public void channelStatus(){
         opMode.telemetry.addData("Channel left position", ".2f", channelLeft.getPosition());
         opMode.telemetry.addData("Channel right position", ".2f", channelRight.getPosition());
+    }
+
+    // *******************************************
+    // *              POTENTIOMETER              *
+    // *******************************************
+    // TODO: Calibrate position values
+    public enum Positions{
+        LOW(0.5),
+        MEDIUM(1.0),
+        HIGH(1.5);
+        final double voltage;
+        Positions(double voltage){
+            this.voltage = voltage;
+        }
+    }
+    public void potVoltage(){
+        opMode.telemetry.addData("Pot voltage: ", ".3f", pot.getVoltage());
     }
 
     // ******************************************
