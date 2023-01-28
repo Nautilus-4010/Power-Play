@@ -1,11 +1,17 @@
 package org.firstinspires.ftc.teamcode;
 
 
+import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaLocalizer;
 import org.firstinspires.ftc.robotcore.external.navigation.VuforiaTrackables;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -44,6 +50,13 @@ public class RobotHardware {
         this.opMode = opMode;
     }
 
+    private void stopChassis(){
+        rightFrontDrive.setPower(0);
+        leftFrontDrive.setPower(0);
+        rightBackDrive.setPower(0);
+        leftBackDrive.setPower(0);
+    }
+
     public void initializeHardware(HardwareMap hardwareMap) {
         opMode.telemetry.addData("Status", "Initializing...");
         opMode.telemetry.update();
@@ -78,10 +91,11 @@ public class RobotHardware {
         elevatorLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         elevatorRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         elevatorLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        elevatorRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        elevatorRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER) ;
     }
     public void initializeSensors(HardwareMap hardwareMap){
         potentiometer = hardwareMap.get(AnalogInput.class, "pot");
+        initImu();
     }
 
     // ******************************************
@@ -214,6 +228,13 @@ public class RobotHardware {
         }
         return 0;
     }
+    public void useElevatorAuto(ElevatorPositions positions){
+        double error = usePot(positions, 0);
+        while(opMode.opModeIsActive() &&
+                Math.abs(positions.VOLTAGE - potentiometer.getVoltage()) < 0.005){
+            error = usePot(positions, error);
+        }
+    }
 
     // ******************************************
     // *                 VISION                 *
@@ -296,6 +317,155 @@ public class RobotHardware {
             }
         }
         return identifiedTrackable;
+    }
+    // **********************
+    // *     AUTONOMOUS     *
+    // **********************
+    private static final int ticksPerCM_Axial = 25,
+            ticksPerCM_Lateral = 30;
+    private static final double BASE_SPEED_AUTONOMOUS = 0.5,
+    MAX_SPEED_AUTONOMOUS = 0.6;
+    public BNO055IMU imu;
+    Orientation lastMeasuredAngle;
+    double globalAngle;
+    final double PROPORTIONAL = 0.005; // No time for PID
+    public void initImu(){
+        imu = opMode.hardwareMap.get(BNO055IMU.class, "imu");
+        BNO055IMU.Parameters params = new BNO055IMU.Parameters();
+        params.mode = BNO055IMU.SensorMode.IMU;
+        params.angleUnit = BNO055IMU.AngleUnit.DEGREES;
+        params.accelUnit = BNO055IMU.AccelUnit.METERS_PERSEC_PERSEC;
+        params.loggingEnabled = true;
+        params.loggingTag = "IMU_DEBUG";
+        imu.initialize(params);
+        lastMeasuredAngle = new Orientation();
+    }
+    public void resetAngle(){
+        lastMeasuredAngle = imu.getAngularOrientation(AxesReference.INTRINSIC,
+                AxesOrder.ZYX, AngleUnit.DEGREES);
+        globalAngle = 0;
+    }
+    private double getAngle(){
+        Orientation angles = imu.getAngularOrientation(AxesReference.INTRINSIC,
+                AxesOrder.ZYX, AngleUnit.DEGREES);
+        double differenceAngle = angles.firstAngle - lastMeasuredAngle.firstAngle;
+        if(differenceAngle < -180) differenceAngle += 360;
+        else if (differenceAngle > 180) differenceAngle -= 360;
+        globalAngle += differenceAngle;
+        lastMeasuredAngle = angles;
+        return globalAngle;
+    }
+
+    public void moveAxial(double distanceInCM){
+        resetEncoders();
+        double desiredPosition = getAngle();
+        double leftPower = 0, rightPower = 0;
+        int targetPosition = (int) Math.round(distanceInCM * ticksPerCM_Lateral);
+        leftFrontDrive.setTargetPosition(targetPosition);
+        rightFrontDrive.setTargetPosition(targetPosition);
+        leftBackDrive.setTargetPosition(targetPosition);
+        rightBackDrive.setTargetPosition(targetPosition);
+        setChasisRunMode(DcMotor.RunMode.RUN_TO_POSITION);
+        while(opMode.opModeIsActive() && leftFrontDrive.isBusy() && leftBackDrive.isBusy()
+                && rightBackDrive.isBusy() && rightFrontDrive.isBusy()){
+            double error = getAngle(), relativeError;
+            relativeError = (desiredPosition - error) / desiredPosition;
+            if(distanceInCM > 0){
+                rightPower = leftPower = BASE_SPEED_AUTONOMOUS;
+                leftPower -= leftPower * relativeError * PROPORTIONAL;
+                rightPower += rightPower * relativeError * PROPORTIONAL;
+            } else if(distanceInCM < 0){
+                rightPower = leftPower = -BASE_SPEED_AUTONOMOUS;
+                leftPower += leftPower * relativeError * PROPORTIONAL;
+                rightPower -= rightPower * relativeError * PROPORTIONAL;
+            }
+            leftPower = Range.clip(leftPower, -MAX_SPEED_AUTONOMOUS, MAX_SPEED_AUTONOMOUS);
+            rightPower = Range.clip(rightPower, -MAX_SPEED_AUTONOMOUS, MAX_SPEED_AUTONOMOUS);
+            opMode.telemetry.addData("Left power: ", leftPower);
+            opMode.telemetry.addData("Right power: ", rightPower);
+            opMode.telemetry.addData("Error: ", relativeError);
+            opMode.telemetry.addData("Desviacion: ", error);
+            opMode.telemetry.addData("Target ", desiredPosition);
+            rightFrontDrive.setPower(rightPower);
+            leftBackDrive.setPower(leftPower);
+            leftFrontDrive.setPower(leftPower);
+            rightBackDrive.setPower(rightPower);
+        }
+        stopChassis();
+        setChasisRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+    public void moveLateral(double distanceInCM){
+        resetEncoders();
+        double desiredPosition = getAngle();
+        double leftPower = 0, rightPower = 0;
+        int targetPosition = (int) Math.round(distanceInCM * ticksPerCM_Axial);
+        leftFrontDrive.setTargetPosition(targetPosition);
+        rightFrontDrive.setTargetPosition(-targetPosition);
+        leftBackDrive.setTargetPosition(-targetPosition);
+        rightBackDrive.setTargetPosition(targetPosition);
+        setChasisRunMode(DcMotor.RunMode.RUN_TO_POSITION);
+        while(opMode.opModeIsActive() && leftFrontDrive.isBusy() && leftBackDrive.isBusy()
+                && rightBackDrive.isBusy() && rightFrontDrive.isBusy()){
+            double error = getAngle(), relativeError;
+            relativeError = (desiredPosition - error) / desiredPosition;
+            if(distanceInCM > 0){
+                rightPower = leftPower = BASE_SPEED_AUTONOMOUS + 0.3;
+                leftPower -= leftPower * relativeError * PROPORTIONAL;
+                rightPower += rightPower * relativeError * PROPORTIONAL;
+            } else if(distanceInCM < 0){
+                rightPower = leftPower = -BASE_SPEED_AUTONOMOUS;
+                leftPower += leftPower * relativeError * PROPORTIONAL;
+                rightPower -= rightPower * relativeError * PROPORTIONAL;
+            }
+            leftPower = Range.clip(leftPower, -MAX_SPEED_AUTONOMOUS - 0.3, MAX_SPEED_AUTONOMOUS + 0.3);
+            rightPower = Range.clip(rightPower, -MAX_SPEED_AUTONOMOUS - 0.3, MAX_SPEED_AUTONOMOUS + 0.3);
+            opMode.telemetry.addData("Left power: ", leftPower);
+            opMode.telemetry.addData("Right power: ", rightPower);
+            opMode.telemetry.addData("Error: ", relativeError);
+            opMode.telemetry.addData("Desviacion: ", error);
+            opMode.telemetry.addData("Target ", desiredPosition);
+            rightFrontDrive.setPower(rightPower);
+            leftBackDrive.setPower(leftPower);
+            leftFrontDrive.setPower(leftPower);
+            rightBackDrive.setPower(rightPower);
+        }
+        stopChassis();
+        setChasisRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+    public void rotate(double degrees){
+        double leftPower, rightPower;
+        resetAngle();
+        if(degrees < 0){
+            leftPower = BASE_SPEED_AUTONOMOUS;
+            rightPower = -BASE_SPEED_AUTONOMOUS;
+        }
+        else if(degrees > 0){
+            leftPower = -BASE_SPEED_AUTONOMOUS;
+            rightPower = BASE_SPEED_AUTONOMOUS;
+        }
+        else return;
+        rightFrontDrive.setPower(rightPower);
+        leftBackDrive.setPower(leftPower);
+        leftFrontDrive.setPower(leftPower);
+        rightBackDrive.setPower(rightPower);
+        if (degrees < 0)
+        {
+            // On right turn we have to get off zero first.
+            while (opMode.opModeIsActive() && getAngle() >= 0) {
+                opMode.sleep(100);
+            }
+
+             while (opMode.opModeIsActive() && getAngle() > degrees) {
+                 opMode.sleep(100);
+             }
+        }
+        else {    // left turn.{
+            while (opMode.opModeIsActive() && getAngle() < degrees) {
+                opMode.sleep(100);
+            }
+        }
+        stopChassis();
+        resetAngle();
     }
 }
 enum ElevatorPositions{

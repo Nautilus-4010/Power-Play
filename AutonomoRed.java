@@ -6,7 +6,7 @@ import org.firstinspires.ftc.robotcore.external.matrices.OpenGLMatrix;
 
 @Autonomous(name="Red alliance")
 public class AutonomoRed extends LinearOpMode {
-    private RobotHardware robot = new RobotHardware(this);
+    private final RobotHardware robot = new RobotHardware(this);
     private OpenGLMatrix targetPose;
 
 
