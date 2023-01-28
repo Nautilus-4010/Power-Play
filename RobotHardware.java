@@ -228,11 +228,14 @@ public class RobotHardware {
         }
         return 0;
     }
-    public void useElevatorAuto(ElevatorPositions positions){
-        double error = usePot(positions, 0);
-        while(opMode.opModeIsActive() &&
-                Math.abs(positions.VOLTAGE - potentiometer.getVoltage()) < 0.005){
-            error = usePot(positions, error);
+    
+    public void moveElevator(ElevatorPositions position) {
+        int MILLISECONDS_TO_REACH_TARGET = 10000;
+        int DELAY = 100;
+        double error = 0;
+        for(int i = 0; i < MILLISECONDS_TO_REACH_TARGET / DELAY && opMode.opModeIsActive(); i++) {
+            error = usePot(position, error);
+            opMode.sleep(DELAY);
         }
     }
 
@@ -340,11 +343,13 @@ public class RobotHardware {
         imu.initialize(params);
         lastMeasuredAngle = new Orientation();
     }
+
     public void resetAngle(){
         lastMeasuredAngle = imu.getAngularOrientation(AxesReference.INTRINSIC,
                 AxesOrder.ZYX, AngleUnit.DEGREES);
         globalAngle = 0;
     }
+
     private double getAngle(){
         Orientation angles = imu.getAngularOrientation(AxesReference.INTRINSIC,
                 AxesOrder.ZYX, AngleUnit.DEGREES);
@@ -394,6 +399,7 @@ public class RobotHardware {
         stopChassis();
         setChasisRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
+
     public void moveLateral(double distanceInCM){
         resetEncoders();
         double desiredPosition = getAngle();
@@ -432,6 +438,7 @@ public class RobotHardware {
         stopChassis();
         setChasisRunMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
+    
     public void rotate(double degrees){
         double leftPower, rightPower;
         resetAngle();
@@ -455,9 +462,7 @@ public class RobotHardware {
                 opMode.sleep(100);
             }
 
-             while (opMode.opModeIsActive() && getAngle() > degrees) {
-                 opMode.sleep(100);
-             }
+            // while (opMode.opModeIsActive() && getAngle() > degrees) {}
         }
         else {    // left turn.{
             while (opMode.opModeIsActive() && getAngle() < degrees) {
